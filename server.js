@@ -8,12 +8,32 @@ const path = require('path');
 const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 3000;
-const INDEX = path.join(__dirname, 'index.html');
+// Finds the game page even if the file was renamed (index.htm, "index (1).html", inside public/, ...)
+function findGame() {
+  const dirs = [__dirname, path.join(__dirname, 'public')];
+  for (const dir of dirs) {
+    let files = [];
+    try { files = fs.readdirSync(dir); } catch (e) { continue; }
+    const exact = files.find(f => f.toLowerCase() === 'index.html' || f.toLowerCase() === 'index.htm');
+    if (exact) return path.join(dir, exact);
+    const any = files.find(f => /\.html?$/i.test(f));
+    if (any) return path.join(dir, any);
+  }
+  return null;
+}
 
 const server = http.createServer((req, res) => {
   if (req.url === '/healthz') { res.writeHead(200); res.end('ok'); return; }
-  fs.readFile(INDEX, (err, data) => {
-    if (err) { res.writeHead(500); res.end('index.html missing'); return; }
+  const file = findGame();
+  if (!file) {
+    let list = [];
+    try { list = fs.readdirSync(__dirname); } catch (e) {}
+    res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Game page not found. Add index.html next to server.js.\nFiles the server can see: ' + list.join(', '));
+    return;
+  }
+  fs.readFile(file, (err, data) => {
+    if (err) { res.writeHead(500); res.end('Could not read the game page.'); return; }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(data);
   });
